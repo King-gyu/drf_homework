@@ -1,10 +1,11 @@
 from django.shortcuts import render
+from rest_framework.generics import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework import permissions
 from rest_framework.response import Response
 from articles.models import Article
-from articles.serializers import ArticleSerializer, ArticleCreateSerializer
+from articles.serializers import ArticleSerializer, ArticleCreateSerializer, ArticleListSerializer
 
 # Create your views here.
 
@@ -12,7 +13,7 @@ from articles.serializers import ArticleSerializer, ArticleCreateSerializer
 class ArticleView(APIView):
     def get(self, request):
         articles = Article.objects.all()
-        serializer = ArticleSerializer(articles, many=True)
+        serializer = ArticleListSerializer(articles, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
@@ -21,33 +22,31 @@ class ArticleView(APIView):
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
-            return Response(serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ArticleDetailView(APIView):
     def get(self, request, article_id):
-        pass
+        article = Article.objects.get(id=article_id)
+        serializer = ArticleSerializer(article)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, article_id):
-        pass
-
+        article = Article.objects.get(id=article_id)
+        if request.user == article.user:
+            serializer = ArticleCreateSerializer(article, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response("권한이 없습니다.", status=status.HTTP_403_FORBIDDEN)
+        
     def delete(self, request, article_id):
-        pass
-
-
-class CommentView(APIView):
-    def get(self, request):
-        pass
-
-    def post(self, request):
-        pass
-
-
-class CommentDetailView(APIView):
-    def delete(self, request, comment_id):
-        pass
-
-
-class LikeView(APIView):
-    def post(self, request):
-        pass
+        article = get_object_or_404(Article, id=article_id)
+        if request.user == article.user:
+            article.delete()
+            return Response("삭제가 완료되었습니다.", status=status.HTTP_200_OK)
+        else:
+            return Response("권한이 없습니다.", status=status.HTTP_403_FORBIDDEN)
